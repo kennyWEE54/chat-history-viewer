@@ -69,14 +69,31 @@
     const API_URL = 'https://lxklyjkguvjqysjyzemh.functions.supabase.co/chat-history';
 
     const $ = (s) => document.querySelector(s);
-    const norm = (v) => (v||'').replace(/[^\\d]/g,'');
+    const norm = (v) => (v||'').replace(/[^\d]/g,'');
     const fmt = (ts) => { try{ const d=new Date(ts);
       const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),dd=String(d.getDate()).padStart(2,'0'),
             hh=String(d.getHours()).padStart(2,'0'),mm=String(d.getMinutes()).padStart(2,'0');
-      return \`\${y}-\${m}-\${dd} \${hh}:\${mm}\`; }catch{ return ts||'' } };
+      return `${y}-${m}-${dd} ${hh}:${mm}`; }catch{ return ts||'' } };
+
+    // 规范化号码：01 开头（马来西亚本地）自动补 60
+    const normalizeMsisdn = (d) => {
+      if (!d) return d;
+      return /^01\d{8,9}$/.test(d) ? '6' + d : d;
+    };
+
+    // 读取 ?phone=... 方便外部直连
+    function getQueryParam(name){
+      const u = new URL(window.location.href);
+      return u.searchParams.get(name) || '';
+    }
 
     async function load(phone){
-      const res = await fetch(\`\${API_URL}?phone=\${encodeURIComponent(phone)}\`, { headers:{accept:'application/json'}, cache:'no-store' });
+      const qs = new URLSearchParams({
+        phone,
+        limit: '500',           // 一次最多拉 500 条
+        since_hours: '876000'   // 100 年，规避后端 created_at 过滤
+      }).toString();
+      const res = await fetch(`${API_URL}?${qs}`, { headers:{accept:'application/json'}, cache:'no-store' });
       if(!res.ok) throw new Error('HTTP '+res.status);
       const data = await res.json();
       return { messages: data.messages||[], user: data.user||null };
@@ -86,8 +103,8 @@
       $('#u_name').textContent = user?.name ?? '—';
       $('#u_nickname').textContent = user?.nickname ?? '—';
       $('#u_birthdate').textContent = user?.birthdate ?? '—';
-      $('#who').textContent = rows.length ? \`手机号：\${phone}\` : '未查询 / 无结果';
-      $('#summary').textContent = rows.length ? \`共 \${rows.length} 条消息\` : '—';
+      $('#who').textContent = rows.length ? `手机号：${phone}` : '未查询 / 无结果';
+      $('#summary').textContent = rows.length ? `共 ${rows.length} 条消息` : '—';
 
       const list = $('#list');
       list.innerHTML = '';
@@ -105,16 +122,16 @@
 
         const stamp = document.createElement('div');
         stamp.className = 'stamp '+side;
-        stamp.textContent = \`\${m.role||''} · \${fmt(m.created_at)}\`;
+        stamp.textContent = `${m.role||''} · ${fmt(m.created_at)}`;
         list.appendChild(stamp);
       }
       list.scrollTop = list.scrollHeight;
     }
 
     async function onQuery(){
-      const phone = norm($('#phone').value);
+      const phone = normalizeMsisdn(norm($('#phone').value));
       if(!phone){ alert('请输入手机号（仅数字）'); return; }
-      $('#who').textContent = \`手机号：\${phone}\`;
+      $('#who').textContent = `手机号：${phone}`;
       $('#summary').textContent = '加载中…';
       $('#list').innerHTML = '<div class="stamp">⌛ 加载中…</div>';
       try{
@@ -132,6 +149,17 @@
     document.getElementById('phone').addEventListener('keydown', (e) => {
       if (e.key === 'Enter') { e.preventDefault(); onQuery(); }
     });
+
+    // 页面加载时，支持 ?phone=6011... 直达查询
+    (function initFromQuery(){
+      const p = normalizeMsisdn(norm(getQueryParam('phone')));
+      if(p){
+        const input = document.getElementById('phone');
+        input.value = p;
+        // 直接查询
+        onQuery();
+      }
+    })();
   </script>
 </body>
 </html>
