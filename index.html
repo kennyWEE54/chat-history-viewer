@@ -46,10 +46,10 @@
           </div>
           <div class="sub">输入手机号，查看该用户与助手的历史对话</div>
         </div>
-        <div class="search">
-          <input id="phone" class="input" type="tel" placeholder="例如：601114014090（只输入数字）" />
-          <button id="btn" class="btn">查询</button>
-        </div>
+        <form id="searchForm" class="search" action="#" method="GET">
+          <input id="phone" name="phone" class="input" type="tel" placeholder="例如：601114014090（只输入数字）" />
+          <button id="btn" class="btn" type="submit" aria-label="查询">查询</button>
+        </form>
       </div>
 
       <div class="content">
@@ -125,8 +125,13 @@
         console.warn(e);
       }
     }
-    $('#btn').addEventListener('click', onQuery);
-    $('#phone').addEventListener('keydown', e=>{ if(e.key==='Enter') onQuery(); });
+    document.getElementById('searchForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      onQuery();
+    });
+    document.getElementById('phone').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); onQuery(); }
+    });
   </script>
 </body>
 </html>
