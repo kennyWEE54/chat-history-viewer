@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>聊天记录查看 | 按手机号查询</title>
+  <style>
+    :root{--bg:#0b0c0f;--card:#111318;--muted:#9aa3b2;--soft:#1a1d24;--brand:#4f8cff;--user:#eef1f5;--assistant:#e9f1ff;--radius:16px}
+    *{box-sizing:border-box} html,body{height:100%}
+    body{margin:0;font:14px/1.6 system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;color:#e6e9ef;background:
+      radial-gradient(1200px 600px at 70% -10%,#1a3d7a33,transparent 60%),
+      radial-gradient(900px 400px at 10% 10%,#2f5bdd22,transparent 60%),var(--bg)}
+    .app{max-width:960px;margin:32px auto;padding:0 16px 32px}
+    .card{background:linear-gradient(180deg,#141722 0%,#0f1218 100%);border:1px solid #1f2530;border-radius:20px;box-shadow:0 10px 30px rgba(0,0,0,.45);overflow:hidden}
+    .header{padding:20px;border-bottom:1px solid #1c2230;display:grid;grid-template-columns:1fr auto;gap:12px;align-items:end;background:linear-gradient(180deg,rgba(79,140,255,.08),transparent)}
+    .title{font-size:16px;font-weight:700}
+    .profile{margin-top:6px;display:flex;gap:8px;flex-wrap:wrap}
+    .pill{background:#182036;border:1px solid #2a3248;color:#c9d4ff;padding:4px 10px;border-radius:999px;font-size:12px}
+    .sub{color:var(--muted);font-size:12px;margin-top:2px}
+    .search{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center}
+    .input{background:var(--soft);border:1px solid #2a3240;border-radius:12px;height:40px;padding:0 12px;color:#e6e9ef;outline:none;width:360px}
+    .input::placeholder{color:#6b7687}
+    .btn{height:40px;padding:0 14px;border-radius:12px;border:1px solid #2a3240;background:linear-gradient(180deg,#2a65ff,#1d49c9);color:#fff;font-weight:600;letter-spacing:.2px;cursor:pointer}
+    .content{padding:14px}
+    .meta{display:flex;justify-content:space-between;align-items:center;color:var(--muted);font-size:12px;padding:6px 8px 8px}
+    .messages{padding:6px;display:flex;flex-direction:column;gap:8px;max-height:62vh;overflow:auto}
+    .msg{display:flex;gap:8px;align-items:flex-end}
+    .user .bubble{background:var(--user);color:#111318;border-top-left-radius:6px}
+    .assistant{justify-content:flex-end}
+    .assistant .bubble{background:var(--assistant);color:#0a1020;border-top-right-radius:6px}
+    .bubble{max-width:min(80%,760px);padding:10px 12px;border-radius:var(--radius);white-space:pre-wrap;box-shadow:0 8px 18px rgba(0,0,0,.22)}
+    .stamp{color:var(--muted);font-size:11px;margin:2px 6px;max-width:80%}
+    .user .stamp{text-align:left} .assistant .stamp{text-align:right}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="card">
+      <div class="header">
+        <div>
+          <div class="title">聊天记录查看</div>
+          <div class="profile">
+            <span class="pill" id="u_name">—</span>
+            <span class="pill" id="u_nickname">—</span>
+            <span class="pill" id="u_birthdate">—</span>
+          </div>
+          <div class="sub">输入手机号，查看该用户与助手的历史对话</div>
+        </div>
+        <div class="search">
+          <input id="phone" class="input" type="tel" placeholder="例如：601114014090（只输入数字）" />
+          <button id="btn" class="btn">查询</button>
+        </div>
+      </div>
+
+      <div class="content">
+        <div class="meta">
+          <span id="who">未查询</span>
+          <span id="summary">—</span>
+        </div>
+        <div id="list" class="messages">
+          <div class="stamp">👆 请输入手机号后点击「查询」</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // 改成你的 Supabase Edge Function JSON API
+    const API_URL = 'https://lxklyjkguvjqysjyzemh.functions.supabase.co/chat-history';
+
+    const $ = (s) => document.querySelector(s);
+    const norm = (v) => (v||'').replace(/[^\\d]/g,'');
+    const fmt = (ts) => { try{ const d=new Date(ts);
+      const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),dd=String(d.getDate()).padStart(2,'0'),
+            hh=String(d.getHours()).padStart(2,'0'),mm=String(d.getMinutes()).padStart(2,'0');
+      return \`\${y}-\${m}-\${dd} \${hh}:\${mm}\`; }catch{ return ts||'' } };
+
+    async function load(phone){
+      const res = await fetch(\`\${API_URL}?phone=\${encodeURIComponent(phone)}\`, { headers:{accept:'application/json'}, cache:'no-store' });
+      if(!res.ok) throw new Error('HTTP '+res.status);
+      const data = await res.json();
+      return { messages: data.messages||[], user: data.user||null };
+    }
+
+    function render(phone, rows, user){
+      $('#u_name').textContent = user?.name ?? '—';
+      $('#u_nickname').textContent = user?.nickname ?? '—';
+      $('#u_birthdate').textContent = user?.birthdate ?? '—';
+      $('#who').textContent = rows.length ? \`手机号：\${phone}\` : '未查询 / 无结果';
+      $('#summary').textContent = rows.length ? \`共 \${rows.length} 条消息\` : '—';
+
+      const list = $('#list');
+      list.innerHTML = '';
+      if(!rows.length){ list.innerHTML = '<div class="stamp">😶 没有找到聊天记录</div>'; return; }
+
+      for(const m of rows){
+        const side = m.role === 'assistant' ? 'assistant' : 'user';
+        const msg = document.createElement('div');
+        msg.className = 'msg '+side;
+        const bubble = document.createElement('div');
+        bubble.className = 'bubble';
+        bubble.textContent = m.content || '';
+        msg.appendChild(bubble);
+        list.appendChild(msg);
+
+        const stamp = document.createElement('div');
+        stamp.className = 'stamp '+side;
+        stamp.textContent = \`\${m.role||''} · \${fmt(m.created_at)}\`;
+        list.appendChild(stamp);
+      }
+      list.scrollTop = list.scrollHeight;
+    }
+
+    async function onQuery(){
+      const phone = norm($('#phone').value);
+      if(!phone){ alert('请输入手机号（仅数字）'); return; }
+      $('#who').textContent = \`手机号：\${phone}\`;
+      $('#summary').textContent = '加载中…';
+      $('#list').innerHTML = '<div class="stamp">⌛ 加载中…</div>';
+      try{
+        const {messages,user} = await load(phone);
+        render(phone, messages, user);
+      }catch(e){
+        $('#list').innerHTML = '<div class="stamp">❌ 拉取失败，请稍后重试</div>';
+        console.warn(e);
+      }
+    }
+    $('#btn').addEventListener('click', onQuery);
+    $('#phone').addEventListener('keydown', e=>{ if(e.key==='Enter') onQuery(); });
+  </script>
+</body>
+</html>
