@@ -90,7 +90,7 @@
     async function load(phone){
       const qs = new URLSearchParams({
         phone,
-        limit: '500',           // 一次最多拉 500 条
+        limit: '1000',           // 一次最多拉 1000 条
         since_hours: '876000'   // 100 年，规避后端 created_at 过滤
       }).toString();
       const res = await fetch(`${API_URL}?${qs}`, { headers:{accept:'application/json'}, cache:'no-store' });
